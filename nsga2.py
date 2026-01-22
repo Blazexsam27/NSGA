@@ -2,10 +2,12 @@ import math
 import random
 import numpy as np
 import csv
+import os
 from typing import List, Tuple
 
 from nsga.simulator import Simulator
 import tensorflow as tf
+import matplotlib.pyplot as plt
 
 
 def ensure_bounds(x, bounds):
@@ -207,6 +209,15 @@ def run_nsga(
 
     pop = initialize_population(pop_size, bounds, gear_idxs, gear_bounds)
 
+    # outputs directory: place outputs in the same directory as this script
+    file_dir = os.path.dirname(os.path.abspath(__file__))
+    out_dir = file_dir
+    os.makedirs(out_dir, exist_ok=True)
+
+    gen_best_fc = []
+    gen_mean_fc = []
+    gen_pareto_sizes = []
+
     for gen in range(generations):
         objs = evaluate_population(pop, simulator)
 
@@ -256,6 +267,13 @@ def run_nsga(
         print(
             f"Gen {gen+1}/{generations} | Best fc: {best_obj[0]:.4f}, obj2: {best_obj[1]:.4f}"
         )
+        # record metrics
+        f_vals = [o[0] for o in combined_objs]
+        gen_best_fc.append(float(min(f_vals)))
+        gen_mean_fc.append(float(sum(f_vals) / len(f_vals)))
+        # approximate current Pareto size
+        fronts_now = fast_nondominated_sort(combined_objs)
+        gen_pareto_sizes.append(len(fronts_now[0]) if fronts_now else 0)
 
     # final Pareto front
     final_objs = evaluate_population(pop, simulator)
@@ -263,14 +281,65 @@ def run_nsga(
     pareto_idx = fronts[0]
     pareto = [(pop[i], final_objs[i]) for i in pareto_idx]
 
-    # save Pareto front
-    with open("pareto_front.csv", "w", newline="") as f:
+    # save Pareto front (in module directory)
+    with open(os.path.join(out_dir, "pareto_front.csv"), "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["Iax", "Rtr", "Ig3", "Ig4", "Ig5", "fc", "neg_avgEL"])
         for x, obj in pareto:
             writer.writerow(list(x) + list(obj))
 
     print(f"Saved Pareto front with {len(pareto)} solutions to pareto_front.csv")
+
+    # --- Visualizations ---
+    # 1) Objective history
+    try:
+        plt.figure(figsize=(8, 4))
+        plt.plot(range(1, len(gen_best_fc) + 1), gen_best_fc, label="Best fc")
+        plt.plot(range(1, len(gen_mean_fc) + 1), gen_mean_fc, label="Mean fc")
+        plt.xlabel("Generation")
+        plt.ylabel("Fuel Consumption (fc)")
+        plt.title("Objective over generations")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(os.path.join(out_dir, "fc_history.png"))
+        plt.close()
+    except Exception:
+        pass
+
+    # 2) Pareto scatter (fc vs avgEL)
+    try:
+        plt.figure(figsize=(6, 6))
+        xs = [obj[0] for _, obj in pareto]
+        ys = [-obj[1] for _, obj in pareto]  # avgEL
+        plt.scatter(xs, ys, c="tab:blue")
+        plt.xlabel("Fuel Consumption (fc)")
+        plt.ylabel("Average Elasticity (avgEL)")
+        plt.title("Pareto Front (fc vs avgEL)")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(os.path.join(out_dir, "pareto_front.png"))
+        plt.close()
+    except Exception:
+        pass
+
+    # 3) Parameter histograms for Pareto solutions
+    try:
+        if pareto:
+            params = np.vstack([x for x, _ in pareto])
+            names = ["Iax", "Rtr", "Ig3", "Ig4", "Ig5"]
+            plt.figure(figsize=(10, 6))
+            for i in range(params.shape[1]):
+                plt.subplot(2, 3, i + 1)
+                plt.hist(params[:, i], bins=8, color="C%d" % i)
+                plt.title(names[i])
+            plt.tight_layout()
+            plt.savefig(os.path.join(out_dir, "pareto_parameters_hist.png"))
+            plt.close()
+    except Exception:
+        pass
+
+    print(f"Saved visualizations to {out_dir}")
     return pareto
 
 
