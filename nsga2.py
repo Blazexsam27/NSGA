@@ -5,7 +5,11 @@ import csv
 import os
 from typing import List, Tuple
 
-from nsga.simulator import Simulator
+try:
+    from nsga.simulator import Simulator
+except Exception:
+    # allow running the script directly from the `nsga` folder
+    from simulator import Simulator
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
@@ -194,6 +198,7 @@ def run_nsga(
     mutation_prob=0.2,
     seed=None,
     executable_path=None,
+    strict_simulator=False,
 ):
     if seed is not None:
         random.seed(seed)
@@ -205,7 +210,7 @@ def run_nsga(
     gear_idxs = [2, 3, 4]
     gear_bounds = (0.50, 2.25)
 
-    simulator = Simulator(executable_path)
+    simulator = Simulator(executable_path, strict=strict_simulator)
 
     pop = initialize_population(pop_size, bounds, gear_idxs, gear_bounds)
 
@@ -336,6 +341,55 @@ def run_nsga(
             plt.tight_layout()
             plt.savefig(os.path.join(out_dir, "pareto_parameters_hist.png"))
             plt.close()
+    except Exception:
+        pass
+
+    # 4) Histograms for the entire final population (helpful when Pareto is small)
+    try:
+        params_all = np.vstack(pop)
+        names = ["Iax", "Rtr", "Ig3", "Ig4", "Ig5"]
+        plt.figure(figsize=(10, 6))
+        for i in range(params_all.shape[1]):
+            plt.subplot(2, 3, i + 1)
+            plt.hist(params_all[:, i], bins=10, color="C%d" % i)
+            plt.title(names[i])
+        plt.tight_layout()
+        plt.savefig(os.path.join(out_dir, "population_parameters_hist.png"))
+        plt.close()
+    except Exception:
+        pass
+
+    # 5) Scatter of all individuals in objective space colored by Pareto front rank
+    try:
+        xs_all = [o[0] for o in final_objs]
+        ys_all = [-o[1] for o in final_objs]
+        # compute ranks per solution
+        rank_of = {}
+        for r, front in enumerate(fronts):
+            for idx in front:
+                rank_of[idx] = r
+        ranks = [rank_of.get(i, 999) for i in range(len(final_objs))]
+        cmap = plt.get_cmap("tab10")
+        plt.figure(figsize=(6, 6))
+        for r in sorted(set(ranks)):
+            idxs = [i for i, rr in enumerate(ranks) if rr == r]
+            if not idxs:
+                continue
+            plt.scatter(
+                [xs_all[i] for i in idxs],
+                [ys_all[i] for i in idxs],
+                label=f"Front {r}",
+                color=cmap(r % 10),
+                s=30,
+            )
+        plt.xlabel("Fuel Consumption (fc)")
+        plt.ylabel("Average Elasticity (avgEL)")
+        plt.title("Population objectives colored by front")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(os.path.join(out_dir, "population_objectives_fronts.png"))
+        plt.close()
     except Exception:
         pass
 

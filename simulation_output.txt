@@ -1,0 +1,11 @@
+--- STDOUT ---
+init:   4.0  0.45  2.0  1.5  1.0  in the model:   4.0  0.45  2.0  1.5  1.0
+ Achse
+in the parameters:   4.000000  0.450000  2.000000  1.500000  1.000000  1.000000  
+
+** starting the model **
+** created Verbrauchsmodell_PKW_ECAI_v2.mat **
+
+1.347083  1118.646488  5.605988  12.130000  21.570000  48.490000
+
+--- STDERR ---
