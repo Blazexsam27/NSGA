@@ -393,6 +393,135 @@ def run_nsga(
     except Exception:
         pass
 
+    # 6) Pareto size over generations
+    try:
+        plt.figure(figsize=(6, 3))
+        plt.plot(range(1, len(gen_pareto_sizes) + 1), gen_pareto_sizes, marker="o")
+        plt.xlabel("Generation")
+        plt.ylabel("Pareto Front Size (|Front0|)")
+        plt.title("Pareto Front Size over Generations")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(os.path.join(out_dir, "pareto_size_history.png"))
+        plt.close()
+    except Exception:
+        pass
+
+    # 7) Focused histograms for Ig3, Ig4, Ig5 (Pareto vs Population)
+    try:
+        names = ["Ig3", "Ig4", "Ig5"]
+        plt.figure(figsize=(10, 4))
+        params_all = np.vstack(pop)
+        pareto_params = (
+            np.vstack([x for x, _ in pareto]) if pareto else np.empty((0, 5))
+        )
+        for i, idx in enumerate([2, 3, 4]):
+            plt.subplot(1, 3, i + 1)
+            plt.hist(
+                params_all[:, idx],
+                bins=12,
+                alpha=0.4,
+                label="population",
+                color="C%d" % i,
+            )
+            if pareto_params.size:
+                plt.hist(
+                    pareto_params[:, idx],
+                    bins=8,
+                    alpha=0.8,
+                    label="pareto",
+                    color="C%d" % (i + 3),
+                )
+            plt.title(names[i])
+            plt.legend()
+        plt.tight_layout()
+        plt.savefig(os.path.join(out_dir, "ig_gears_hist_comparison.png"))
+        plt.close()
+    except Exception:
+        pass
+
+    # 8) Pairwise scatter matrix of parameters (final population)
+    try:
+        params_all = np.vstack(pop)
+        names = ["Iax", "Rtr", "Ig3", "Ig4", "Ig5"]
+        n = params_all.shape[1]
+        fig, axes = plt.subplots(n, n, figsize=(10, 10))
+        for i in range(n):
+            for j in range(n):
+                ax = axes[i, j]
+                if i == j:
+                    ax.hist(params_all[:, j], bins=12, color="C0")
+                else:
+                    ax.scatter(params_all[:, j], params_all[:, i], s=8, alpha=0.6)
+                if i == n - 1:
+                    ax.set_xlabel(names[j])
+                if j == 0:
+                    ax.set_ylabel(names[i])
+        plt.tight_layout()
+        plt.savefig(os.path.join(out_dir, "params_pairwise_matrix.png"))
+        plt.close()
+    except Exception:
+        pass
+
+    # 9) Parameter vs fc scatter (colored by front)
+    try:
+        params_all = np.vstack(pop)
+        xs_fc = [o[0] for o in final_objs]
+        # reuse ranks computed earlier
+        rank_of = {}
+        for r, front in enumerate(fronts):
+            for idx in front:
+                rank_of[idx] = r
+        ranks = [rank_of.get(i, 999) for i in range(len(final_objs))]
+        cmap = plt.get_cmap("tab10")
+        names = ["Iax", "Rtr", "Ig3", "Ig4", "Ig5"]
+        plt.figure(figsize=(12, 8))
+        for i in range(params_all.shape[1]):
+            plt.subplot(3, 2, i + 1)
+            for r in sorted(set(ranks)):
+                idxs = [k for k, rr in enumerate(ranks) if rr == r]
+                if not idxs:
+                    continue
+                plt.scatter(
+                    [params_all[k, i] for k in idxs],
+                    [xs_fc[k] for k in idxs],
+                    label=f"Front {r}",
+                    s=12,
+                    color=cmap(r % 10),
+                    alpha=0.7,
+                )
+            plt.xlabel(names[i])
+            plt.ylabel("fc")
+            plt.tight_layout()
+        plt.savefig(os.path.join(out_dir, "params_vs_fc_by_front.png"))
+        plt.close()
+    except Exception:
+        pass
+
+    # 10) Boxplots for gear ratios (Ig3/Ig4/Ig5) comparing Pareto vs Population
+    try:
+        params_all = np.vstack(pop)
+        pareto_params = (
+            np.vstack([x for x, _ in pareto]) if pareto else np.empty((0, 5))
+        )
+        data = []
+        labels = []
+        for idx, name in zip([2, 3, 4], ["Ig3", "Ig4", "Ig5"]):
+            data.append(params_all[:, idx])
+            labels.append(f"pop_{name}")
+            if pareto_params.size:
+                data.append(pareto_params[:, idx])
+                labels.append(f"pareto_{name}")
+        plt.figure(figsize=(8, 4))
+        plt.boxplot(data, labels=labels, showmeans=True)
+        plt.xticks(rotation=45)
+        plt.title("Boxplots: Population vs Pareto (Ig3/Ig4/Ig5)")
+        plt.tight_layout()
+        plt.savefig(os.path.join(out_dir, "ig_boxplots_pop_vs_pareto.png"))
+        plt.close()
+    except Exception:
+        pass
+
     print(f"Saved visualizations to {out_dir}")
     return pareto
 
