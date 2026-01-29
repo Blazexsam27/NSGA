@@ -53,6 +53,7 @@ def dominates(a, b):
 
 
 def fast_nondominated_sort(objs: List[Tuple[float, float]]):
+
     S = [[] for _ in range(len(objs))]
     n = [0] * len(objs)
     rank = [0] * len(objs)

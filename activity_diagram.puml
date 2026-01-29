@@ -1,0 +1,64 @@
+@startuml
+title NSGA-II Runner - Activity Diagram
+
+start
+:
+Initialize configuration and parameters\n(pop_size, generations, bounds, seed);
+
+:
+Create initial population (random sampling)\n(enforce Ig3>Ig4>Ig5 during init);
+
+repeat
+  :Evaluate population;
+  note right: Calls `Simulator.evaluate()`
+  note right: Uses real `ConsumptionCar.exe` in strict mode
+  if (simulator missing/unparsable) then (permissive)
+    :Switch to mock evaluator (TF batch or fallback);
+  else (strict)
+    :Raise error and stop;
+  endif
+
+  :Compute objective vectors (fc, -avgEL);
+  :Fast non-dominated sort -> fronts;
+  :Compute crowding distances for selection;
+
+  :Create offspring via repeated:
+  - tournament selection
+  - simulated binary crossover
+  - polynomial mutation
+  - repair Ig3>Ig4>Ig5
+  :(until offspring population size reached);
+
+  :Combine parents + offspring;
+  :Evaluate combined objectives;
+  :Select next generation by fronts and crowding distance;
+
+  :Record metrics (best fc, mean fc, pareto size);
+repeat while (generation < generations)
+
+:
+Final evaluation on last population;
+:
+Extract Pareto front (Front 0) and save to `pareto_front.csv`;
+:
+Generate visualizations (saved in `nsga`):
+- fc_history.png
+- pareto_front.png
+- pareto_parameters_hist.png
+- population_parameters_hist.png
+- population_objectives_fronts.png
+- ig_gears_hist_comparison.png
+- params_pairwise_matrix.png
+- params_vs_fc_by_front.png
+- ig_boxplots_pop_vs_pareto.png
+- pareto_size_history.png
+
+stop
+
+note bottom
+This diagram is a high-level overview of the NSGA-II DSE runner in the `nsga` module.
+Simulator parsing: `_parse_output()` tries key:value lines first, then numeric rows (columns used: fc=col1, ELg3=col4, ELg4=col5, ELg5=col6).
+Strict mode prevents falling back to mock and raises on missing/unparsable executable.
+end note
+
+@enduml
